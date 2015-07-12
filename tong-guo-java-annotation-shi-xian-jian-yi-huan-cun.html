@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+        
+        <meta charset="utf-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        
+        
+        <title>cozybz's blog</title>
+        <link rel="stylesheet" href="/theme/css/dawn.css" />
+        <link rel="stylesheet" href="/theme/css/pygments-default.css" />
+        <link rel="stylesheet" href="/theme/css/bootstrap.min.css" />
+        <link rel="stylesheet" href="/theme/css/bootstrap-theme.min.css" />
+        <link rel="stylesheet" href="/theme/js/bootstrap.min.js" />
+</head>
+
+<body id="index" class="home">
+        <div class="container">
+            <h3><a href="/">cozybz's blog</a></h3>
+            <strong></strong>
+            
+            <nav id="menu"><ul>
+            </ul></nav><!-- /#menu -->
+            
+            <hr/>
+            
+    <h2><a href="/tong-guo-java-annotation-shi-xian-jian-yi-huan-cun.html">通过 Java Annotation 实现简易缓存</a></h2>
+    <hr/>
+    <div class="entry-content">
+    <p>实现效果如下，只需一行注解，就可以从重复的缓存代码中解放出来。</p>
+<div class="highlight"><pre><span class="nd">@MyCache</span><span class="o">(</span><span class="n">expire</span> <span class="o">=</span> <span class="mi">30</span><span class="o">)</span>
+<span class="kd">public</span> <span class="n">List</span><span class="o">&lt;</span><span class="n">User</span><span class="o">&gt;</span> <span class="nf">getAllUser</span><span class="o">()</span> <span class="o">{</span>
+    <span class="c1">//TODO</span>
+<span class="o">}</span>
+</pre></div>
+
+
+<p>@MyCache 注解定义如下，需在运行时获取，本例中只能对 method 注解 。 @MyCache中只有一个expire成员，作为失效时间 。</p>
+<div class="highlight"><pre><span class="nd">@Retention</span><span class="o">(</span><span class="n">RetentionPolicy</span><span class="o">.</span><span class="na">RUNTIME</span><span class="o">)</span>
+<span class="nd">@Target</span><span class="o">(</span><span class="n">ElementType</span><span class="o">.</span><span class="na">METHOD</span><span class="o">)</span>
+<span class="kd">public</span> <span class="nd">@interface</span> <span class="n">MyCache</span> <span class="o">{</span>
+    <span class="kt">int</span> <span class="nf">expire</span><span class="o">()</span> <span class="k">default</span> <span class="mi">60</span><span class="o">;</span>
+<span class="o">}</span>
+</pre></div>
+
+
+<p>通过反射获取待执行方法的 @MyCache 注解，及expire失效时间 。使用方法签名 + 参数作为 key 。示例代码中使用 Cglib 实现代理。</p>
+<div class="highlight"><pre><span class="kd">public</span> <span class="kd">class</span> <span class="nc">CacheProxy</span> <span class="kd">implements</span> <span class="n">MethodInterceptor</span> <span class="o">{</span>
+
+    <span class="nd">@Override</span>
+    <span class="kd">public</span> <span class="n">Object</span> <span class="nf">intercept</span><span class="o">(</span><span class="n">Object</span> <span class="n">obj</span><span class="o">,</span> <span class="n">Method</span> <span class="n">method</span><span class="o">,</span> <span class="n">Object</span><span class="o">[]</span> <span class="n">objects</span><span class="o">,</span> <span class="n">MethodProxy</span> <span class="n">methodProxy</span><span class="o">)</span> <span class="kd">throws</span> <span class="n">Throwable</span> <span class="o">{</span>
+        <span class="n">Object</span> <span class="n">result</span> <span class="o">=</span> <span class="kc">null</span><span class="o">;</span>
+        <span class="n">LunaCache</span> <span class="n">cache</span> <span class="o">=</span> <span class="n">method</span><span class="o">.</span><span class="na">getAnnotation</span><span class="o">(</span><span class="n">LunaCache</span><span class="o">.</span><span class="na">class</span><span class="o">);</span>  <span class="c1">//获取注解</span>
+        <span class="k">if</span> <span class="o">(</span><span class="n">cache</span> <span class="o">!=</span> <span class="kc">null</span><span class="o">)</span> <span class="o">{</span>
+            <span class="n">String</span> <span class="n">cacheKey</span> <span class="o">=</span> <span class="s">&quot;LPC_&quot;</span> <span class="o">+</span> <span class="n">key</span> <span class="o">+</span> <span class="n">Arrays</span><span class="o">.</span><span class="na">toString</span><span class="o">(</span><span class="n">objects</span><span class="o">);</span>
+            <span class="n">String</span> <span class="n">cacheValue</span> <span class="o">=</span> <span class="n">RedisUtils</span><span class="o">.</span><span class="na">getFromCache</span><span class="o">(</span><span class="n">cacheKey</span><span class="o">);</span>  <span class="c1">//优先取缓存</span>
+            <span class="k">if</span> <span class="o">(</span><span class="n">StringUtils</span><span class="o">.</span><span class="na">isNotBlank</span><span class="o">(</span><span class="n">cacheValue</span><span class="o">))</span> <span class="o">{</span>
+                <span class="n">Class</span><span class="o">&lt;?&gt;</span> <span class="n">returnType</span> <span class="o">=</span> <span class="n">method</span><span class="o">.</span><span class="na">getReturnType</span><span class="o">();</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="n">SeriUtils</span><span class="o">.</span><span class="na">readValue</span><span class="o">(</span><span class="n">cacheValue</span><span class="o">,</span> <span class="n">returnType</span><span class="o">);</span>  <span class="c1">//返序列化</span>
+            <span class="o">}</span> <span class="k">else</span> <span class="o">{</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="n">methodProxy</span><span class="o">.</span><span class="na">invokeSuper</span><span class="o">(</span><span class="n">obj</span><span class="o">,</span> <span class="n">objects</span><span class="o">);</span>  <span class="c1">//实际调用</span>
+                <span class="k">if</span> <span class="o">(</span><span class="n">result</span> <span class="o">!=</span> <span class="kc">null</span><span class="o">)</span> <span class="o">{</span>
+                    <span class="n">RedisUtils</span><span class="o">.</span><span class="na">set</span><span class="o">(</span><span class="n">cacheKey</span><span class="o">,</span> <span class="n">SeriUtils</span><span class="o">.</span><span class="na">writeObject</span><span class="o">(</span><span class="n">result</span><span class="o">),</span> <span class="n">cache</span><span class="o">.</span><span class="na">expire</span><span class="o">());</span>  <span class="c1">//序列化结果，并设置缓存</span>
+                <span class="o">}</span>
+            <span class="o">}</span>
+        <span class="o">}</span> <span class="k">else</span> <span class="o">{</span> <span class="c1">// 注解未获取到，不使用 cache</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">methodProxy</span><span class="o">.</span><span class="na">invokeSuper</span><span class="o">(</span><span class="n">obj</span><span class="o">,</span> <span class="n">objects</span><span class="o">);</span>
+        <span class="o">}</span>
+        <span class="k">return</span> <span class="n">result</span><span class="o">;</span>
+    <span class="o">}</span>
+
+    <span class="nd">@SuppressWarnings</span><span class="o">(</span><span class="s">&quot;unchecked&quot;</span><span class="o">)</span>
+    <span class="kd">public</span> <span class="kd">static</span> <span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span> <span class="n">T</span> <span class="nf">newInstance</span><span class="o">(</span><span class="n">Class</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span> <span class="n">clazz</span><span class="o">)</span> <span class="o">{</span>
+        <span class="n">T</span> <span class="n">instance</span> <span class="o">=</span> <span class="o">(</span><span class="n">T</span><span class="o">)</span> <span class="n">Enhancer</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="n">clazz</span><span class="o">,</span> <span class="k">new</span> <span class="n">LunaProxy</span><span class="o">());</span>
+        <span class="n">log</span><span class="o">.</span><span class="na">info</span><span class="o">(</span><span class="s">&quot;newInstance : &quot;</span> <span class="o">+</span> <span class="n">clazz</span><span class="o">.</span><span class="na">getName</span><span class="o">());</span>
+        <span class="k">return</span> <span class="n">instance</span><span class="o">;</span>
+    <span class="o">}</span>
+
+<span class="o">}</span>
+</pre></div>
+    </div>
+
+            <hr/>
+            
+            <h5 style="margin-top:50px;">Powered by <a href="http://getpelican.com/">Pelican</a>.</h5>
+        </div>
+    </body>
+
+</html>
