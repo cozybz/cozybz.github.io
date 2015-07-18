@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+        
+        <meta charset="utf-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        
+        
+        <title>cozybz's blog</title>
+        <link rel="stylesheet" href="/theme/css/dawn.css" />
+        <link rel="stylesheet" href="/theme/css/pygments-default.css" />
+        <link rel="stylesheet" href="/theme/css/bootstrap.min.css" />
+        <link rel="stylesheet" href="/theme/css/bootstrap-theme.min.css" />
+        <link rel="stylesheet" href="/theme/js/bootstrap.min.js" />
+</head>
+
+<body id="index" class="home">
+        <div class="container">
+            <h3><a href="/">cozybz's blog</a></h3>
+            <strong></strong>
+            
+            <nav id="menu"><ul>
+            </ul></nav><!-- /#menu -->
+            
+            <hr/>
+            
+    <h2><a href="/java-chong-tu-class-sao-miao.html">Java 冲突 class 扫描</a></h2>
+    <hr/>
+    <div class="entry-content">
+    <p>上周发生了一起上线事故。服务线下测试，沙箱测试均正常，上线后，有一个节点报异常，其他节点都没有问题。  </p>
+<p>经排查，罪魁祸首是 lib 目录下不同 jar 包内，竟然有包名，类名完全相同，实现却不同的Class（当时心中千万只神兽呼啸而过）。  </p>
+<p>由于 ClassLoader 加载各 jar 中的 class 时，顺序不固定，所以出现了上面诡异的情况：线下，沙箱均没有异常，上线后，也只有一个节点刷异常。  </p>
+<p>为预防上面的情况再次发生，空闲时写了一个简单的 Python 脚本，用来扫描目录下所有 jar 包是否含有冲突 class 。  </p>
+<div class="highlight"><pre><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">zipfile</span>
+
+<span class="k">def</span> <span class="nf">dupli_scan</span><span class="p">(</span><span class="n">dir_path</span><span class="p">):</span>
+    <span class="n">class_file_dict</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">dir_path</span><span class="p">):</span>
+        <span class="n">filepath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dir_path</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">filename</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s">&quot;.jar&quot;</span> <span class="ow">and</span> <span class="n">zipfile</span><span class="o">.</span><span class="n">is_zipfile</span><span class="p">(</span><span class="n">filepath</span><span class="p">):</span>
+            <span class="n">jarfile</span> <span class="o">=</span> <span class="n">zipfile</span><span class="o">.</span><span class="n">ZipFile</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">class_file</span> <span class="ow">in</span> <span class="n">jarfile</span><span class="o">.</span><span class="n">namelist</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">class_file</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s">&quot;.class&quot;</span><span class="p">:</span>
+                    <span class="n">md5</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">jarfile</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">class_file</span><span class="p">))</span>
+
+                    <span class="k">if</span> <span class="n">class_file_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">class_file</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                        <span class="n">class_file_dict</span><span class="p">[</span><span class="n">class_file</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+                    <span class="n">class_file_dict</span><span class="p">[</span><span class="n">class_file</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">filepath</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">jarfile</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">class_file</span><span class="p">))))</span>
+
+    <span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n\n\33</span><span class="s">[33m### duplicate classes ###</span><span class="se">\033</span><span class="s">[0m</span><span class="se">\n\n</span><span class="s">&quot;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">class_file</span> <span class="ow">in</span> <span class="n">class_file_dict</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">class_file_dict</span><span class="p">[</span><span class="n">class_file</span><span class="p">])</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="n">class_file</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">class_info</span> <span class="ow">in</span> <span class="n">class_file_dict</span><span class="p">[</span><span class="n">class_file</span><span class="p">]:</span>
+                <span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\t</span><span class="si">%s</span><span class="se">\t</span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">class_info</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">class_info</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+
+    <span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n\n\33</span><span class="s">[33m### very dangerous ###</span><span class="se">\033</span><span class="s">[0m</span><span class="se">\n\n</span><span class="s">&quot;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">class_file</span> <span class="ow">in</span> <span class="n">class_file_dict</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">class_file_dict</span><span class="p">[</span><span class="n">class_file</span><span class="p">])</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+
+            <span class="n">size</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">class_info</span> <span class="ow">in</span> <span class="n">class_file_dict</span><span class="p">[</span><span class="n">class_file</span><span class="p">]:</span>
+                <span class="n">size</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">class_info</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">size</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">print</span><span class="p">(</span><span class="n">class_file</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">class_info</span> <span class="ow">in</span> <span class="n">class_file_dict</span><span class="p">[</span><span class="n">class_file</span><span class="p">]:</span>
+                    <span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\t</span><span class="si">%s</span><span class="se">\t</span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">class_info</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">class_info</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s">&quot;param error , use : dupli_scan.py path&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">dupli_scan</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+</pre></div>
+    </div>
+
+            <hr/>
+            
+            <h5 style="margin-top:50px;">Powered by <a href="http://getpelican.com/">Pelican</a>.</h5>
+        </div>
+    </body>
+
+</html>
